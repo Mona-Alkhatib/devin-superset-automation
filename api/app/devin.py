@@ -22,7 +22,7 @@ async def create_session(prompt: str, title: str | None = None) -> dict:
     POST /v1/sessions
     Returns: {"session_id": str, "url": str, "is_new_session": bool | None}
     """
-    body: dict = {"prompt": prompt, "idempotent": True}
+    body: dict = {"prompt": prompt, "idempotent": False}
     if title:
         body["title"] = title
     async with httpx.AsyncClient(timeout=30) as client:
