@@ -5,11 +5,16 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 
 from . import db, devin, poller
 
 WEBHOOK_SECRET = os.environ["GITHUB_WEBHOOK_SECRET"].encode()
 GITHUB_REPO = os.environ["GITHUB_REPO"]
+API_TOKEN = os.environ.get("API_ACCESS_TOKEN", "")
+
+# Disable interactive API docs in production; set ENABLE_DOCS=1 to re-enable.
+_enable_docs = os.environ.get("ENABLE_DOCS", "0") == "1"
 
 
 @asynccontextmanager
@@ -22,7 +27,30 @@ async def lifespan(app: FastAPI):
         task.cancel()
 
 
-app = FastAPI(lifespan=lifespan, title="Devin Superset Automation")
+app = FastAPI(
+    lifespan=lifespan,
+    title="Devin Superset Automation",
+    docs_url="/docs" if _enable_docs else None,
+    redoc_url="/redoc" if _enable_docs else None,
+)
+
+# Explicit CORS: only allow the dashboard origin by default.
+_allowed_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")
+_allowed_origins = [o.strip() for o in _allowed_origins if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+
+
+def _require_api_token(authorization: str = Header(default="")) -> None:
+    """Lightweight bearer-token check for internal endpoints."""
+    if not API_TOKEN:
+        return  # no token configured — skip (local dev)
+    if authorization != f"Bearer {API_TOKEN}":
+        raise HTTPException(403, "forbidden")
 
 
 def verify_signature(body: bytes, signature: str) -> bool:
@@ -77,17 +105,14 @@ async def github_webhook(
                 issue_url=issue["html_url"],
                 session_url=session.get("url"),
             )
-            return {
-                "status": "dispatched",
-                "session_id": session["session_id"],
-                "session_url": session.get("url"),
-            }
+            return {"status": "dispatched"}
 
     return {"status": "ignored"}
 
 
 @app.get("/sessions")
-def list_sessions():
+def list_sessions(authorization: str = Header(default="")):
+    _require_api_token(authorization)
     return db.all_sessions()
 
 
