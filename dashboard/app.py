@@ -17,7 +17,8 @@ try:
         df = pd.read_sql_query(
             "SELECT * FROM sessions ORDER BY created_at DESC", c
         )
-except (sqlite3.OperationalError, pd.errors.DatabaseError):
+except (sqlite3.OperationalError, pd.errors.DatabaseError) as exc:
+    st.warning(f"Could not read sessions from the database: {exc}")
     df = pd.DataFrame(
         columns=["session_id", "issue_number", "issue_url", "session_url",
                  "status", "pr_url", "created_at", "updated_at"]
