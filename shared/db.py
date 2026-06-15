@@ -1,7 +1,10 @@
+import logging
 import sqlite3
 from datetime import datetime, timezone
 
 from .config import DB_PATH
+
+logger = logging.getLogger(__name__)
 
 
 def _conn() -> sqlite3.Connection:
@@ -26,6 +29,7 @@ def init() -> None:
             )
             """
         )
+    logger.info("Database initialised at %s", DB_PATH)
 
 
 def record_session(
@@ -36,22 +40,32 @@ def record_session(
 ) -> None:
     now = datetime.now(timezone.utc).isoformat()
     with _conn() as c:
-        c.execute(
+        cursor = c.execute(
             "INSERT OR IGNORE INTO sessions "
             "(session_id, issue_number, issue_url, session_url, status, pr_url, created_at, updated_at) "
             "VALUES (?, ?, ?, ?, 'working', NULL, ?, ?)",
             (session_id, issue_number, issue_url, session_url, now, now),
         )
+        if cursor.rowcount == 0:
+            logger.warning(
+                "Duplicate session %s for issue #%s — insert skipped",
+                session_id,
+                issue_number,
+            )
 
 
 def update_status(session_id: str, status: str, pr_url: str | None = None) -> None:
     now = datetime.now(timezone.utc).isoformat()
     with _conn() as c:
-        c.execute(
+        cursor = c.execute(
             "UPDATE sessions SET status=?, pr_url=COALESCE(?, pr_url), updated_at=? "
             "WHERE session_id=?",
             (status, pr_url, now, session_id),
         )
+        if cursor.rowcount == 0:
+            logger.warning(
+                "update_status: session %s not found in DB", session_id
+            )
 
 
 def open_sessions() -> list[dict]:

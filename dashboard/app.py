@@ -18,7 +18,8 @@ st.caption("Event-driven Devin automation against the forked Apache Superset rep
 try:
     rows = all_sessions()
     df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=EMPTY_COLUMNS)
-except Exception:
+except Exception as exc:
+    st.warning(f"Could not read sessions from the database: {exc}")
     df = pd.DataFrame(columns=EMPTY_COLUMNS)
 
 in_flight = int((~df["status"].isin(TERMINAL_STATUSES)).sum()) if len(df) else 0

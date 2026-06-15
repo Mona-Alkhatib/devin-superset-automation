@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import hmac
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -8,6 +9,8 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import db, devin, poller
+
+logger = logging.getLogger(__name__)
 
 WEBHOOK_SECRET = os.environ["GITHUB_WEBHOOK_SECRET"].encode()
 GITHUB_REPO = os.environ["GITHUB_REPO"]
@@ -25,6 +28,10 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(
@@ -93,19 +100,48 @@ async def github_webhook(
     if x_github_event == "issues" and payload.get("action") == "labeled":
         label_name = payload.get("label", {}).get("name", "")
         if label_name == "devin-fix":
-            issue = payload["issue"]
+            issue = payload.get("issue")
+            if not issue:
+                raise HTTPException(422, "payload missing 'issue' field")
+
+            for key in ("number", "html_url", "title"):
+                if key not in issue:
+                    raise HTTPException(
+                        422, f"issue object missing required '{key}' field"
+                    )
+
             title = f"Fix #{issue['number']}: {issue['title']}"
-            session = await devin.create_session(
-                prompt=build_prompt(issue),
-                title=title,
-            )
+            try:
+                session = await devin.create_session(
+                    prompt=build_prompt(issue),
+                    title=title,
+                )
+            except Exception:
+                logger.exception(
+                    "Devin API call failed for issue #%s", issue["number"]
+                )
+                raise HTTPException(
+                    502, "failed to create Devin session"
+                ) from None
+
+            session_id = session.get("session_id")
+            if not session_id:
+                logger.error(
+                    "Devin API response missing session_id: %s", session
+                )
+                raise HTTPException(502, "Devin API returned no session_id")
+
             db.record_session(
-                session_id=session["session_id"],
+                session_id=session_id,
                 issue_number=issue["number"],
                 issue_url=issue["html_url"],
                 session_url=session.get("url"),
             )
-            return {"status": "dispatched"}
+            return {
+                "status": "dispatched",
+                "session_id": session_id,
+                "session_url": session.get("url"),
+            }
 
     return {"status": "ignored"}
 
