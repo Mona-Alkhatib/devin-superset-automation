@@ -4,10 +4,10 @@
 > Devin sessions, opens pull requests on a forked Apache Superset, and
 > surfaces real-time progress for engineering leadership.
 
-**What it solves.** Mechanical code-modernization work (deprecation cleanups,
-PEP 585/604 typing migrations, dependency bumps) eats engineering time without
-moving the product forward. This system routes that backlog to Devin and gives
-leadership a single screen to answer *"is the automation working?"*.
+**What it solves.** Mechanical engineering work — deprecation cleanups,
+dependency CVE patches, code-quality fixes — eats engineering time without
+moving the product forward. This system routes that backlog to Devin and
+gives leadership a single screen to answer *"is the automation working?"*.
 
 **Who it's for.** A VP of Engineering evaluating Devin as a long-term primitive
 in their developer-experience stack, and the senior ICs who'd own the integration.
@@ -57,17 +57,19 @@ in their developer-experience stack, and the senior ICs who'd own the integratio
 
 ## Remediation targets (this demo)
 
-The system was pointed at these three issues on
-[`Mona-Alkhatib/fork_superset`](https://github.com/Mona-Alkhatib/fork_superset/issues):
+The system was pointed at two open issues on
+[`Mona-Alkhatib/fork_superset`](https://github.com/Mona-Alkhatib/fork_superset/issues),
+chosen to cover two distinct value categories a VP of Engineering actually cares about:
 
-| # | Title | Why it matters |
-|---|---|---|
-| 1 | Replace deprecated `datetime.utcnow()` (27 call sites) | Python 3.12+ deprecation; naive datetimes are a recurring tz-bug source |
-| 2 | Adopt PEP 585 built-in generics in `superset/utils/` | `typing.List/Dict/...` soft-deprecated since 3.9 |
-| 3 | Adopt PEP 604 union syntax in `superset/utils/` | `Optional[X]` → `X \| None`, enforced by `ruff` UP007 |
+| # | Title | Category | Why a VP cares |
+|---|---|---|---|
+| [1](https://github.com/Mona-Alkhatib/fork_superset/issues/1) | Replace deprecated `datetime.utcnow()` (27 call sites) | **Deprecation hygiene** | Forward-compatibility; naive datetimes are a recurring timezone-bug source. Result: [PR #4](https://github.com/Mona-Alkhatib/fork_superset/pull/4) opened autonomously. |
+| [5](https://github.com/Mona-Alkhatib/fork_superset/issues/5) | Bump `pyjwt` to 2.13.0 (8 PYSEC advisories) | **Security / supply chain** | One patch-level bump retires 8 known CVEs in the JWT library used by Superset's auth flow. |
 
 Each issue body is written as a strict spec for Devin — problem, evidence,
-acceptance criteria with verification commands, and explicit "out of scope".
+acceptance criteria with verification commands, and explicit out-of-scope
+items. The same automation handles both, with zero code changes between
+dispatches — that's the *primitive*, not a script.
 
 ---
 
@@ -159,9 +161,10 @@ piping into any data warehouse or BI tool.
 
 ## Why Devin (and not a script)?
 
-The three issues in this demo could be done with `sed`. The real point of
-this automation is the *next* set of issues — where a one-line `sed` isn't
-enough but the work is still mechanical:
+The `datetime.utcnow()` cleanup could be done with `sed`. The `pyjwt` bump
+could be done with `pip install -U`. The point isn't this demo —
+it's that **the same scaffolding handles the next class of issues** where a
+one-liner isn't enough but the work is still mechanical:
 
 - "Replace `flask.g` accesses with the new request-scoped state helper"
 - "Add type annotations to all public functions in `superset/db_engine_specs/`"
