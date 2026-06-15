@@ -1,29 +1,27 @@
-import os
-import sqlite3
 import time
 
 import pandas as pd
 import streamlit as st
 
-DB_PATH = os.environ["DB_PATH"]
-TERMINAL = {"finished", "blocked", "expired"}
+from shared.config import TERMINAL_STATUSES
+from shared.db import all_sessions
+
+EMPTY_COLUMNS = [
+    "session_id", "issue_number", "issue_url", "session_url",
+    "status", "pr_url", "created_at", "updated_at",
+]
 
 st.set_page_config(page_title="Devin Automation", layout="wide")
 st.title("Devin Remediation Pipeline")
 st.caption("Event-driven Devin automation against the forked Apache Superset repo.")
 
 try:
-    with sqlite3.connect(DB_PATH) as c:
-        df = pd.read_sql_query(
-            "SELECT * FROM sessions ORDER BY created_at DESC", c
-        )
-except (sqlite3.OperationalError, pd.errors.DatabaseError):
-    df = pd.DataFrame(
-        columns=["session_id", "issue_number", "issue_url", "session_url",
-                 "status", "pr_url", "created_at", "updated_at"]
-    )
+    rows = all_sessions()
+    df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=EMPTY_COLUMNS)
+except Exception:
+    df = pd.DataFrame(columns=EMPTY_COLUMNS)
 
-in_flight = int((~df["status"].isin(TERMINAL)).sum()) if len(df) else 0
+in_flight = int((~df["status"].isin(TERMINAL_STATUSES)).sum()) if len(df) else 0
 finished  = int((df["status"] == "finished").sum()) if len(df) else 0
 prs       = int(df["pr_url"].notna().sum()) if len(df) else 0
 blocked   = int(df["status"].isin({"blocked", "expired"}).sum()) if len(df) else 0

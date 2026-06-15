@@ -1,14 +1,11 @@
 import asyncio
 import os
 
+from shared.config import TERMINAL_STATUSES
+
 from . import db, devin
 
 INTERVAL = int(os.environ.get("POLL_INTERVAL_SECONDS", "30"))
-
-# From Devin API v1 status_enum:
-# working, blocked, expired, finished, suspend_requested,
-# suspend_requested_frontend, resume_requested, resume_requested_frontend, resumed
-TERMINAL_STATUSES = {"finished", "blocked", "expired"}
 
 
 async def run_forever() -> None:
