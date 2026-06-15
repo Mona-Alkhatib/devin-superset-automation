@@ -28,7 +28,7 @@ async def _request(method: str, path: str, **kwargs: object) -> dict:
 
 async def create_session(prompt: str, title: str | None = None) -> dict:
     """POST /v1/sessions"""
-    body: dict = {"prompt": prompt, "idempotent": True}
+    body: dict = {"prompt": prompt, "idempotent": False}
     if title:
         body["title"] = title
     return await _request("POST", "/sessions", json=body)
