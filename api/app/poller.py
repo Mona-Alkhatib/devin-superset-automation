@@ -32,9 +32,12 @@ async def run_forever() -> None:
         try:
             for row in db.open_sessions():
                 info = await devin.get_session(row["session_id"])
-                status = info.get("status_enum") or info.get("status") or "working"
+                raw_status = info.get("status_enum") or info.get("status") or "working"
                 pr_url = _extract_pr_url(info)
-                if status in TERMINAL_STATUSES or pr_url:
+                # If Devin opened a PR, the work landed — surface that as "finished"
+                # regardless of whether the session itself is still in a wait state.
+                status = "finished" if pr_url else raw_status
+                if raw_status in TERMINAL_STATUSES or pr_url:
                     db.update_status(row["session_id"], status, pr_url)
         except Exception as e:
             print(f"[poller] error: {e}", flush=True)
